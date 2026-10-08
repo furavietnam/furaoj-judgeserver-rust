@@ -1,0 +1,15 @@
+{
+  "judge": {
+    "name": "default-judge",
+    "key": "judge_secret_authentication_key",
+    "bridge_host": "127.0.0.1",
+    "bridge_port": 9999,
+    "problem_dir": "./problems",
+    "sandbox_tmpfs_size_mb": 64
+  },
+  "limits": {
+    "max_cpu_time": 10.0,
+    "max_memory_mb": 1024,
+    "max_output_mb": 16
+  }
+}
