@@ -62,13 +62,16 @@ pub async fn grade_single_case(
 ) -> TestCaseResult {
     let start_time = Instant::now();
 
-    let mut cmd = if language == "python" || language == "py" || language == "python3" {
-        let mut c = Command::new("python3");
-        c.arg(bin_path);
-        c
-    } else {
-        Command::new(bin_path)
+    let registry = crate::compiler::get_registry();
+    let (run_args, multiplier) = match registry.find(language) {
+        Some(exec) => (exec.run_command(bin_path), exec.time_multiplier()),
+        None => (vec![bin_path.to_string_lossy().to_string()], 1.0),
     };
+
+    let mut cmd = Command::new(&run_args[0]);
+    if run_args.len() > 1 {
+        cmd.args(&run_args[1..]);
+    }
 
     cmd.stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -95,7 +98,8 @@ pub async fn grade_single_case(
         drop(stdin);
     }
 
-    let timeout_duration = Duration::from_millis(time_limit_ms);
+    let scaled_timeout_ms = (time_limit_ms as f64 * multiplier) as u64;
+    let timeout_duration = Duration::from_millis(scaled_timeout_ms);
     let run_res = timeout(timeout_duration, child.wait_with_output()).await;
 
     let elapsed = start_time.elapsed().as_millis() as u64;

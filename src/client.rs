@@ -47,11 +47,13 @@ async fn handle_connection(
     let (mut read_half, mut write_half) = stream.split();
 
     // 1. Send Handshake packet
+    let all_executors = crate::compiler::get_registry().all_keys();
     let handshake_payload = json!({
-        "name": config.judge.name,
+        "name": "handshake",
+        "id": config.judge.name,
         "key": config.judge.key,
         "problems": HashMap::<String, u64>::new(),
-        "executors": ["gcc", "g++", "rustc", "python3"],
+        "executors": all_executors,
         "version": "2.0.0"
     });
 
