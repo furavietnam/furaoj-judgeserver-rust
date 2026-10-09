@@ -92,15 +92,31 @@ async fn handle_connection(
                 write_half.write_all(&encoded).await?;
             }
             "submission-request" => {
-                let sub_id = packet["submission_id"].as_i64().unwrap_or(0);
-                let prob_id = packet["problem_id"].as_i64().unwrap_or(1);
-                let language = packet["language"].as_str().unwrap_or("cpp");
-                let source_code = packet["source_code"].as_str().unwrap_or("");
-                let time_limit = packet["time_limit"].as_u64().unwrap_or(1000);
+                let sub_id = packet.get("submission-id")
+                    .or_else(|| packet.get("submission_id"))
+                    .and_then(|v| v.as_i64())
+                    .unwrap_or(0);
+                let prob_code = packet.get("problem-id")
+                    .or_else(|| packet.get("problem_id"))
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("aplusb");
+                let language = packet.get("language").and_then(|v| v.as_str()).unwrap_or("cpp");
+                let source_code = packet.get("source")
+                    .or_else(|| packet.get("source_code"))
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
+                let time_limit = if let Some(tl) = packet.get("time-limit").and_then(|v| v.as_f64()) {
+                    (tl * 1000.0) as u64
+                } else if let Some(tl) = packet.get("time_limit").and_then(|v| v.as_u64()) {
+                    tl
+                } else {
+                    1000
+                };
 
                 // Acknowledge submission
                 let ack = json!({
                     "name": "submission-acknowledged",
+                    "submission-id": sub_id,
                     "submission_id": sub_id
                 });
                 write_half.write_all(&encode_packet(&ack.to_string())?).await?;
@@ -113,9 +129,16 @@ async fn handle_connection(
                     Err(err_msg) => {
                         let ce_packet = json!({
                             "name": "grading-end",
+                            "submission-id": sub_id,
                             "submission_id": sub_id,
+                            "result": "CE",
                             "verdict": "CE",
+                            "points": 0.0,
                             "score": 0,
+                            "time": 0.0,
+                            "time_ms": 0,
+                            "memory": 0,
+                            "memory_kb": 0,
                             "error_message": err_msg,
                             "test_cases": []
                         });
@@ -125,12 +148,13 @@ async fn handle_connection(
                         // Grading begin
                         let begin_packet = json!({
                             "name": "grading-begin",
+                            "submission-id": sub_id,
                             "submission_id": sub_id
                         });
                         write_half.write_all(&encode_packet(&begin_packet.to_string())?).await?;
 
                         let problem_dir = Path::new(&config.judge.problem_dir);
-                        let test_cases = load_problem_testcases(problem_dir, prob_id);
+                        let test_cases = load_problem_testcases(problem_dir, prob_code);
 
                         let mut results: Vec<TestCaseResult> = Vec::new();
                         let mut total_score = 0;
@@ -152,26 +176,48 @@ async fn handle_connection(
                             }
 
                             // Stream case status
+                            let time_sec = (res.time_ms as f64) / 1000.0;
                             let case_packet = json!({
                                 "name": "test-case-status",
+                                "submission-id": sub_id,
                                 "submission_id": sub_id,
                                 "case_index": res.index,
+                                "position": res.index,
                                 "verdict": res.verdict,
+                                "status": res.verdict,
+                                "time": time_sec,
                                 "time_ms": res.time_ms,
+                                "memory": res.memory_kb,
                                 "memory_kb": res.memory_kb,
-                                "points": res.points
+                                "points": res.points as f64,
+                                "score": res.points,
+                                "output": res.output,
+                                "cases": [{
+                                    "position": res.index,
+                                    "status": res.verdict,
+                                    "time": time_sec,
+                                    "memory": res.memory_kb,
+                                    "points": res.points as f64,
+                                    "output": res.output
+                                }]
                             });
                             write_half.write_all(&encode_packet(&case_packet.to_string())?).await?;
                             results.push(res);
                         }
 
                         // Final grading packet
+                        let max_time_sec = (max_time as f64) / 1000.0;
                         let end_packet = json!({
                             "name": "grading-end",
+                            "submission-id": sub_id,
                             "submission_id": sub_id,
+                            "result": final_verdict,
                             "verdict": final_verdict,
+                            "points": total_score as f64,
                             "score": total_score,
+                            "time": max_time_sec,
                             "time_ms": max_time,
+                            "memory": max_mem,
                             "memory_kb": max_mem,
                             "test_cases": results
                         });
@@ -183,9 +229,13 @@ async fn handle_connection(
                 }
             }
             "terminate-submission" => {
-                let sub_id = packet["submission_id"].as_i64().unwrap_or(0);
+                let sub_id = packet.get("submission-id")
+                    .or_else(|| packet.get("submission_id"))
+                    .and_then(|v| v.as_i64())
+                    .unwrap_or(0);
                 let term = json!({
                     "name": "submission-terminated",
+                    "submission-id": sub_id,
                     "submission_id": sub_id
                 });
                 write_half.write_all(&encode_packet(&term.to_string())?).await?;

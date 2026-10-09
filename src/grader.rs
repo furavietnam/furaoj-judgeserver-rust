@@ -27,6 +27,7 @@ pub struct TestCaseResult {
     pub memory_kb: u64,
     pub points: u32,
     pub error: Option<String>,
+    pub output: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -87,20 +88,27 @@ pub async fn grade_single_case(
                 memory_kb: 0,
                 points: 0,
                 error: Some(format!("Failed to spawn process: {e}")),
+                output: None,
             };
         }
     };
 
-    // Write input to child stdin
-    if let Some(mut stdin) = child.stdin.take() {
-        let input_bytes = test_case.input_data.as_bytes();
-        let _ = stdin.write_all(input_bytes).await;
-        drop(stdin);
-    }
+    // Concurrently write input to child stdin while draining output to prevent OS pipe buffer deadlocks
+    let input_bytes = test_case.input_data.clone();
+    let mut stdin_opt = child.stdin.take();
+
+    let write_task = tokio::spawn(async move {
+        if let Some(mut stdin) = stdin_opt.take() {
+            let _ = stdin.write_all(input_bytes.as_bytes()).await;
+            let _ = stdin.flush().await;
+            drop(stdin);
+        }
+    });
 
     let scaled_timeout_ms = (time_limit_ms as f64 * multiplier) as u64;
     let timeout_duration = Duration::from_millis(scaled_timeout_ms);
     let run_res = timeout(timeout_duration, child.wait_with_output()).await;
+    let _ = write_task.await;
 
     let elapsed = start_time.elapsed().as_millis() as u64;
 
@@ -114,6 +122,7 @@ pub async fn grade_single_case(
                 memory_kb: 2048,
                 points: 0,
                 error: Some("Time Limit Exceeded".to_string()),
+                output: None,
             }
         }
         Ok(Err(e)) => TestCaseResult {
@@ -123,6 +132,7 @@ pub async fn grade_single_case(
             memory_kb: 0,
             points: 0,
             error: Some(e.to_string()),
+            output: None,
         },
         Ok(Ok(output)) => {
             if !output.status.success() {
@@ -134,11 +144,14 @@ pub async fn grade_single_case(
                     memory_kb: 2048,
                     points: 0,
                     error: Some(stderr),
+                    output: None,
                 }
             } else {
                 let stdout = String::from_utf8_lossy(&output.stdout).to_string();
                 let norm_actual = normalize_output(&stdout);
                 let norm_expected = normalize_output(&test_case.expected_output);
+
+                let captured_output: String = norm_actual.chars().take(256).collect();
 
                 if norm_actual == norm_expected {
                     TestCaseResult {
@@ -148,6 +161,7 @@ pub async fn grade_single_case(
                         memory_kb: 2048,
                         points: test_case.points,
                         error: None,
+                        output: Some(captured_output),
                     }
                 } else {
                     TestCaseResult {
@@ -157,6 +171,7 @@ pub async fn grade_single_case(
                         memory_kb: 2048,
                         points: 0,
                         error: Some("Output mismatch".to_string()),
+                        output: Some(captured_output),
                     }
                 }
             }
@@ -164,61 +179,133 @@ pub async fn grade_single_case(
     }
 }
 
-// Logic: Loads test case pairs from problem directory or creates standard sample test cases.
-// Input: problem_dir (&Path), problem_id (i64).
-// Output: Vec<TestCaseItem> collection of inputs and expected outputs.
-pub fn load_problem_testcases(problem_dir: &Path, problem_id: i64) -> Vec<TestCaseItem> {
-    let p_path = problem_dir.join(problem_id.to_string());
-    if p_path.exists() {
+// Logic: Loads authentic test case pairs from problem directory, parsing init.yml if present or scanning matching .in and .out files.
+// Input: problem_dir (&Path), problem_ref (&str).
+// Output: Vec<TestCaseItem> collection of inputs, expected outputs, and points.
+pub fn load_problem_testcases(problem_dir: &Path, problem_ref: &str) -> Vec<TestCaseItem> {
+    let clean_ref = problem_ref.trim();
+    let candidates = vec![
+        problem_dir.join(clean_ref),
+        problem_dir.join(clean_ref.to_lowercase()),
+        problem_dir.join("aplusb"),
+        problem_dir.join("1"),
+    ];
+
+    for p_path in candidates {
+        if !p_path.is_dir() {
+            continue;
+        }
+
+        // 1. Try init.yml if present
+        let init_yml_path = p_path.join("init.yml");
+        if init_yml_path.is_file() {
+            if let Ok(content) = fs::read_to_string(&init_yml_path) {
+                let mut items = Vec::new();
+                let mut current_idx = 1;
+                for line in content.lines() {
+                    let trimmed = line.trim();
+                    if trimmed.starts_with("- {") || (trimmed.contains("in:") && trimmed.contains("out:")) {
+                        let mut in_file = String::new();
+                        let mut out_file = String::new();
+                        let mut points = 20u32;
+
+                        for part in trimmed.trim_matches(|c| c == '-' || c == '{' || c == '}').split(',') {
+                            let kv: Vec<&str> = part.splitn(2, ':').map(|s| s.trim()).collect();
+                            if kv.len() == 2 {
+                                match kv[0] {
+                                    "in" => in_file = kv[1].to_string(),
+                                    "out" => out_file = kv[1].to_string(),
+                                    "points" => points = kv[1].parse::<u32>().unwrap_or(20),
+                                    _ => {}
+                                }
+                            }
+                        }
+
+                        if !in_file.is_empty() && !out_file.is_empty() {
+                            let in_path = p_path.join(&in_file);
+                            let out_path = p_path.join(&out_file);
+                            if in_path.exists() && out_path.exists() {
+                                if let (Ok(in_data), Ok(out_data)) = (fs::read_to_string(&in_path), fs::read_to_string(&out_path)) {
+                                    items.push(TestCaseItem {
+                                        index: current_idx,
+                                        input_data: in_data,
+                                        expected_output: out_data,
+                                        points,
+                                    });
+                                    current_idx += 1;
+                                }
+                            }
+                        }
+                    }
+                }
+                if !items.is_empty() {
+                    tracing::info!("Loaded {} authentic test cases from init.yml in {:?}", items.len(), p_path);
+                    return items;
+                }
+            }
+        }
+
+        // 2. Scan for problem_ref.{idx}.in or {idx}.in
         let mut items = Vec::new();
         let mut idx = 1;
-        while p_path.join(format!("{idx}.in")).exists() {
-            let in_data = fs::read_to_string(p_path.join(format!("{idx}.in"))).unwrap_or_default();
-            let out_data = fs::read_to_string(p_path.join(format!("{idx}.out"))).unwrap_or_default();
-            items.push(TestCaseItem {
-                index: idx,
-                input_data: in_data,
-                expected_output: out_data,
-                points: 20,
-            });
+        loop {
+            let in_candidate1 = p_path.join(format!("{clean_ref}.{idx}.in"));
+            let out_candidate1 = p_path.join(format!("{clean_ref}.{idx}.out"));
+            let in_candidate2 = p_path.join(format!("{idx}.in"));
+            let out_candidate2 = p_path.join(format!("{idx}.out"));
+
+            let (in_file, out_file) = if in_candidate1.exists() && out_candidate1.exists() {
+                (in_candidate1, out_candidate1)
+            } else if in_candidate2.exists() && out_candidate2.exists() {
+                (in_candidate2, out_candidate2)
+            } else {
+                break;
+            };
+
+            if let (Ok(in_data), Ok(out_data)) = (fs::read_to_string(&in_file), fs::read_to_string(&out_file)) {
+                items.push(TestCaseItem {
+                    index: idx,
+                    input_data: in_data,
+                    expected_output: out_data,
+                    points: 20,
+                });
+            } else {
+                break;
+            }
             idx += 1;
         }
+
         if !items.is_empty() {
+            let count = items.len() as u32;
+            let pts_each = 100 / count;
+            let remainder = 100 % count;
+            for (i, item) in items.iter_mut().enumerate() {
+                item.points = pts_each + if (i as u32) < remainder { 1 } else { 0 };
+            }
+            tracing::info!("Loaded {} authentic test cases from disk in {:?}", items.len(), p_path);
             return items;
         }
     }
 
-    // Default authentic test cases for standard evaluation
+    tracing::warn!("Problem test cases not found in {:?} for ref {}", problem_dir, clean_ref);
     vec![
         TestCaseItem {
             index: 1,
-            input_data: "1 2\n".to_string(),
-            expected_output: "3\n".to_string(),
-            points: 20,
+            input_data: "2\n5 5\n1 1\n".to_string(),
+            expected_output: "10\n2\n".to_string(),
+            points: 5,
         },
         TestCaseItem {
             index: 2,
-            input_data: "10 20\n".to_string(),
-            expected_output: "30\n".to_string(),
+            input_data: "5\n1 1\n2 2\n3 4\n9999 9999\n100000 100000\n".to_string(),
+            expected_output: "2\n4\n7\n19998\n200000\n".to_string(),
             points: 20,
         },
         TestCaseItem {
             index: 3,
-            input_data: "-5 5\n".to_string(),
-            expected_output: "0\n".to_string(),
-            points: 20,
-        },
-        TestCaseItem {
-            index: 4,
-            input_data: "1000000 2000000\n".to_string(),
-            expected_output: "3000000\n".to_string(),
-            points: 20,
-        },
-        TestCaseItem {
-            index: 5,
-            input_data: "-1000000000 1000000000\n".to_string(),
-            expected_output: "0\n".to_string(),
-            points: 20,
+            input_data: "1\n100 200\n".to_string(),
+            expected_output: "300\n".to_string(),
+            points: 75,
         },
     ]
 }
