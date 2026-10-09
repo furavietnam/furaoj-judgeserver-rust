@@ -1,5 +1,5 @@
 # Stage 1: Build judge binary
-FROM rust:1.82-bookworm AS builder
+FROM rust:latest AS builder
 
 WORKDIR /usr/src/furaoj-judgeserver-rust
 
@@ -7,13 +7,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libseccomp-dev \
     && rm -rf /var/lib/apt/lists/*
 
-COPY Cargo.toml Cargo.lock* ./
+COPY Cargo.toml Cargo.lock ./
 COPY src ./src
 
 RUN cargo build --release
 
 # Stage 2: Sandboxed runner with compilers
-FROM debian:bookworm-slim AS runner
+FROM debian:trixie-slim AS runner
 
 WORKDIR /app
 
