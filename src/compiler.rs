@@ -1004,6 +1004,263 @@ impl LanguageRegistry {
             }),
         );
 
+        // Additional TierFuraOJ Language Executors
+        executors.insert(
+            "ADA",
+            Box::new(GenericCompiledExecutor {
+                key_name: "ADA",
+                display: "GNAT Ada",
+                ext: "adb",
+                compiler: "gnatmake",
+                args: &["-O2", "-gnat2012"],
+                out_flag_style: OutFlagStyle::Separate,
+                time_mult: 1.0,
+            }),
+        );
+        executors.insert(
+            "ALGL68",
+            Box::new(GenericInterpretedExecutor {
+                key_name: "ALGL68",
+                display: "Algol 68 Genie",
+                ext: "a68",
+                interpreter: "a68g",
+                run_flags: &[],
+                time_mult: 2.0,
+            }),
+        );
+        executors.insert(
+            "BF",
+            Box::new(GenericInterpretedExecutor {
+                key_name: "BF",
+                display: "Brainfuck",
+                ext: "bf",
+                interpreter: "beef",
+                run_flags: &[],
+                time_mult: 3.0,
+            }),
+        );
+        executors.insert(
+            "CBL",
+            Box::new(GenericCompiledExecutor {
+                key_name: "CBL",
+                display: "GnuCOBOL",
+                ext: "cbl",
+                compiler: "cobc",
+                args: &["-x", "-O2"],
+                out_flag_style: OutFlagStyle::Separate,
+                time_mult: 1.5,
+            }),
+        );
+        executors.insert(
+            "COFFEE",
+            Box::new(GenericInterpretedExecutor {
+                key_name: "COFFEE",
+                display: "CoffeeScript",
+                ext: "coffee",
+                interpreter: "coffee",
+                run_flags: &[],
+                time_mult: 1.5,
+            }),
+        );
+        executors.insert(
+            "DART",
+            Box::new(GenericInterpretedExecutor {
+                key_name: "DART",
+                display: "Dart",
+                ext: "dart",
+                interpreter: "dart",
+                run_flags: &["run"],
+                time_mult: 1.5,
+            }),
+        );
+        executors.insert(
+            "F95",
+            Box::new(GenericCompiledExecutor {
+                key_name: "F95",
+                display: "Fortran 95 (GFortran)",
+                ext: "f95",
+                compiler: "gfortran",
+                args: &["-O2", "-static"],
+                out_flag_style: OutFlagStyle::Separate,
+                time_mult: 1.0,
+            }),
+        );
+        executors.insert(
+            "FORTH",
+            Box::new(GenericInterpretedExecutor {
+                key_name: "FORTH",
+                display: "Gforth",
+                ext: "fs",
+                interpreter: "gforth",
+                run_flags: &[],
+                time_mult: 1.5,
+            }),
+        );
+        executors.insert(
+            "GAS32",
+            Box::new(GenericCompiledExecutor {
+                key_name: "GAS32",
+                display: "GNU Assembler (32-bit)",
+                ext: "s",
+                compiler: "gcc",
+                args: &["-m32", "-nostdlib", "-static"],
+                out_flag_style: OutFlagStyle::Separate,
+                time_mult: 1.0,
+            }),
+        );
+        executors.insert(
+            "GAS64",
+            Box::new(GenericCompiledExecutor {
+                key_name: "GAS64",
+                display: "GNU Assembler (64-bit)",
+                ext: "s",
+                compiler: "gcc",
+                args: &["-nostdlib", "-static"],
+                out_flag_style: OutFlagStyle::Separate,
+                time_mult: 1.0,
+            }),
+        );
+        executors.insert(
+            "GASARM",
+            Box::new(GenericCompiledExecutor {
+                key_name: "GASARM",
+                display: "GNU Assembler (ARM)",
+                ext: "s",
+                compiler: "gcc",
+                args: &["-nostdlib", "-static"],
+                out_flag_style: OutFlagStyle::Separate,
+                time_mult: 1.0,
+            }),
+        );
+        executors.insert(
+            "ICK",
+            Box::new(GenericCompiledExecutor {
+                key_name: "ICK",
+                display: "INTERCAL",
+                ext: "i",
+                compiler: "ick",
+                args: &[],
+                out_flag_style: OutFlagStyle::Separate,
+                time_mult: 2.0,
+            }),
+        );
+        executors.insert(
+            "LEAN4",
+            Box::new(GenericInterpretedExecutor {
+                key_name: "LEAN4",
+                display: "Lean 4",
+                ext: "lean",
+                interpreter: "lean",
+                run_flags: &[],
+                time_mult: 2.0,
+            }),
+        );
+        executors.insert(
+            "LLC",
+            Box::new(GenericCompiledExecutor {
+                key_name: "LLC",
+                display: "LLVM IR",
+                ext: "ll",
+                compiler: "clang",
+                args: &["-O2"],
+                out_flag_style: OutFlagStyle::Separate,
+                time_mult: 1.0,
+            }),
+        );
+        executors.insert(
+            "MONOCS",
+            Box::new(GenericCompiledExecutor {
+                key_name: "MONOCS",
+                display: "C# (Mono)",
+                ext: "cs",
+                compiler: "mcs",
+                args: &["-optimize+"],
+                out_flag_style: OutFlagStyle::Joined,
+                time_mult: 1.5,
+            }),
+        );
+        executors.insert(
+            "MONOFS",
+            Box::new(GenericCompiledExecutor {
+                key_name: "MONOFS",
+                display: "F# (Mono)",
+                ext: "fs",
+                compiler: "fsharpc",
+                args: &["--optimize+"],
+                out_flag_style: OutFlagStyle::Joined,
+                time_mult: 1.5,
+            }),
+        );
+        executors.insert(
+            "MONOVB",
+            Box::new(GenericCompiledExecutor {
+                key_name: "MONOVB",
+                display: "Visual Basic .NET (Mono)",
+                ext: "vb",
+                compiler: "vbnc",
+                args: &[],
+                out_flag_style: OutFlagStyle::Separate,
+                time_mult: 1.5,
+            }),
+        );
+        executors.insert(
+            "NASM",
+            Box::new(GenericCompiledExecutor {
+                key_name: "NASM",
+                display: "NASM (32-bit)",
+                ext: "asm",
+                compiler: "nasm",
+                args: &["-f", "elf32"],
+                out_flag_style: OutFlagStyle::Separate,
+                time_mult: 1.0,
+            }),
+        );
+        executors.insert(
+            "NASM64",
+            Box::new(GenericCompiledExecutor {
+                key_name: "NASM64",
+                display: "NASM (64-bit)",
+                ext: "asm",
+                compiler: "nasm",
+                args: &["-f", "elf64"],
+                out_flag_style: OutFlagStyle::Separate,
+                time_mult: 1.0,
+            }),
+        );
+        executors.insert(
+            "PIKE",
+            Box::new(GenericInterpretedExecutor {
+                key_name: "PIKE",
+                display: "Pike",
+                ext: "pike",
+                interpreter: "pike",
+                run_flags: &[],
+                time_mult: 1.5,
+            }),
+        );
+        executors.insert(
+            "RUBY18",
+            Box::new(GenericInterpretedExecutor {
+                key_name: "RUBY18",
+                display: "Ruby 1.8",
+                ext: "rb",
+                interpreter: "ruby",
+                run_flags: &[],
+                time_mult: 1.5,
+            }),
+        );
+        executors.insert(
+            "TUR",
+            Box::new(GenericInterpretedExecutor {
+                key_name: "TUR",
+                display: "Turing",
+                ext: "t",
+                interpreter: "turing",
+                run_flags: &[],
+                time_mult: 1.5,
+            }),
+        );
+
         // Standard Aliases Mapping
         aliases.insert("C++", "CPP20");
         aliases.insert("CPP", "CPP20");
@@ -1024,6 +1281,16 @@ impl LanguageRegistry {
         aliases.insert("JS", "NODEJS");
         aliases.insert("NODE", "NODEJS");
         aliases.insert("GOLANG", "GO");
+        aliases.insert("CS", "MONOCS");
+        aliases.insert("CSHARP", "MONOCS");
+        aliases.insert("C#", "MONOCS");
+        aliases.insert("FS", "MONOFS");
+        aliases.insert("FSHARP", "MONOFS");
+        aliases.insert("F#", "MONOFS");
+        aliases.insert("VB", "MONOVB");
+        aliases.insert("FORTRAN", "F95");
+        aliases.insert("ASM", "NASM64");
+        aliases.insert("ASSEMBLY", "NASM64");
 
         Self { executors, aliases }
     }
